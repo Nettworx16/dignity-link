@@ -15,10 +15,10 @@ const Index = () => {
           </div>
           <div className="flex items-center gap-3">
             <Button variant="ghost" asChild>
-              <Link to="/responder-view">Responder Access</Link>
+              <Link to="/auth">Sign In</Link>
             </Button>
             <Button variant="medical" asChild>
-              <Link to="/dashboard">Patient Portal</Link>
+              <Link to="/auth">Get Started</Link>
             </Button>
           </div>
         </div>
@@ -45,10 +45,10 @@ const Index = () => {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button size="lg" variant="medical" asChild className="text-lg h-14 px-8">
-                <Link to="/dashboard">Get Started</Link>
+                <Link to="/auth">Get Started</Link>
               </Button>
               <Button size="lg" variant="outline" asChild className="text-lg h-14 px-8">
-                <Link to="/responder-view">View Demo</Link>
+                <Link to="/auth">Sign In</Link>
               </Button>
             </div>
           </div>
@@ -196,7 +196,7 @@ const Index = () => {
               Join our feasibility study and help shape the future of emergency healthcare communication
             </p>
             <Button size="lg" variant="medical" asChild className="text-lg h-14 px-8">
-              <Link to="/dashboard">Create Your Profile</Link>
+              <Link to="/auth">Create Your Profile</Link>
             </Button>
           </div>
         </div>
