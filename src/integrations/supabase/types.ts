@@ -64,12 +64,30 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_admin_users: {
+        Args: { page_num?: number; page_size?: number; search_term?: string }
+        Returns: {
+          created_at: string
+          email: string
+          full_name: string
+          id: string
+          roles: string[]
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
         Returns: boolean
+      }
+      manage_user_role: {
+        Args: {
+          action: string
+          new_role: Database["public"]["Enums"]["app_role"]
+          target_user_id: string
+        }
+        Returns: Json
       }
     }
     Enums: {

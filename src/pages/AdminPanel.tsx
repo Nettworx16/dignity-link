@@ -6,26 +6,27 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
-type Profile = {
+type AdminUser = {
   id: string;
   email: string;
   full_name: string | null;
   created_at: string;
-};
-
-type UserRole = {
-  user_id: string;
-  role: string;
+  roles: string[];
 };
 
 const AdminPanel = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [users, setUsers] = useState<Profile[]>([]);
-  const [userRoles, setUserRoles] = useState<Record<string, string[]>>({});
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [page, setPage] = useState(0);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [hasMore, setHasMore] = useState(true);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const pageSize = 50;
 
   useEffect(() => {
     checkAdminAccess();
@@ -74,34 +75,18 @@ const AdminPanel = () => {
     }
   };
 
-  const loadUsers = async () => {
+  const loadUsers = async (currentPage = page, search = searchTerm) => {
     try {
-      // Load all profiles
-      const { data: profiles, error: profilesError } = await supabase
-        .from("profiles")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (profilesError) throw profilesError;
-
-      // Load all user roles
-      const { data: roles, error: rolesError } = await supabase
-        .from("user_roles")
-        .select("*");
-
-      if (rolesError) throw rolesError;
-
-      setUsers(profiles || []);
-
-      // Organize roles by user
-      const rolesMap: Record<string, string[]> = {};
-      roles?.forEach((role: UserRole) => {
-        if (!rolesMap[role.user_id]) {
-          rolesMap[role.user_id] = [];
-        }
-        rolesMap[role.user_id].push(role.role);
+      const { data, error } = await supabase.rpc("get_admin_users", {
+        page_num: currentPage,
+        page_size: pageSize,
+        search_term: search,
       });
-      setUserRoles(rolesMap);
+
+      if (error) throw error;
+
+      setUsers(data || []);
+      setHasMore(data && data.length === pageSize);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -114,23 +99,19 @@ const AdminPanel = () => {
   const toggleAdminRole = async (userId: string, currentRoles: string[]) => {
     try {
       const hasAdmin = currentRoles.includes("admin");
+      const action = hasAdmin ? "remove" : "add";
 
-      if (hasAdmin) {
-        // Remove admin role
-        const { error } = await supabase
-          .from("user_roles")
-          .delete()
-          .eq("user_id", userId)
-          .eq("role", "admin");
+      const { data, error } = await supabase.rpc("manage_user_role", {
+        target_user_id: userId,
+        new_role: "admin",
+        action: action,
+      });
 
-        if (error) throw error;
-      } else {
-        // Add admin role
-        const { error } = await supabase
-          .from("user_roles")
-          .insert({ user_id: userId, role: "admin" });
+      if (error) throw error;
 
-        if (error) throw error;
+      const result = data as { success: boolean; error?: string } | null;
+      if (result && !result.success) {
+        throw new Error(result.error || "Failed to update role");
       }
 
       toast({
@@ -146,6 +127,24 @@ const AdminPanel = () => {
         variant: "destructive",
       });
     }
+  };
+
+  const handleSearch = (value: string) => {
+    setSearchTerm(value);
+    setPage(0);
+    loadUsers(0, value);
+  };
+
+  const handleNextPage = () => {
+    const nextPage = page + 1;
+    setPage(nextPage);
+    loadUsers(nextPage);
+  };
+
+  const handlePrevPage = () => {
+    const prevPage = Math.max(0, page - 1);
+    setPage(prevPage);
+    loadUsers(prevPage);
   };
 
   if (loading) {
@@ -175,7 +174,38 @@ const AdminPanel = () => {
             <CardTitle>User Management</CardTitle>
             <CardDescription>Manage user accounts and roles</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-4">
+              <Input
+                placeholder="Search by email or name..."
+                value={searchTerm}
+                onChange={(e) => handleSearch(e.target.value)}
+                className="max-w-sm"
+              />
+              <div className="flex items-center gap-2 ml-auto">
+                <Button
+                  onClick={handlePrevPage}
+                  disabled={page === 0}
+                  variant="outline"
+                  size="sm"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Previous
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  Page {page + 1}
+                </span>
+                <Button
+                  onClick={handleNextPage}
+                  disabled={!hasMore}
+                  variant="outline"
+                  size="sm"
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -193,7 +223,7 @@ const AdminPanel = () => {
                     <TableCell>{user.full_name || "-"}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        {userRoles[user.id]?.map((role) => (
+                        {user.roles?.map((role) => (
                           <Badge key={role} variant={role === "admin" ? "default" : "secondary"}>
                             {role}
                           </Badge>
@@ -205,11 +235,11 @@ const AdminPanel = () => {
                     </TableCell>
                     <TableCell>
                       <Button
-                        onClick={() => toggleAdminRole(user.id, userRoles[user.id] || [])}
+                        onClick={() => toggleAdminRole(user.id, user.roles || [])}
                         variant="outline"
                         size="sm"
                       >
-                        {userRoles[user.id]?.includes("admin") ? "Remove Admin" : "Make Admin"}
+                        {user.roles?.includes("admin") ? "Remove Admin" : "Make Admin"}
                       </Button>
                     </TableCell>
                   </TableRow>
